@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5" />
+<title>DevOps AI Agent — High-Level Design — Yehor Fedorov</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper:        #F2EBDB;
+  --paper-darker: #EAE0CC;
+  --ink:          #1B1815;
+  --ink-soft:     #4A413A;
+  --ink-mute:     #7A6E5F;
+  --rust:         #B84D2C;
+  --rust-dark:    #8E3520;
+  --forest:       #2A5A4D;
+  --forest-soft:  #3D7A6A;
+  --mustard:      #C99A2D;
+  --warm-line:    #CABCA0;
+  --paper-shadow: rgba(27, 24, 21, 0.08);
+  --paper-shadow-strong: rgba(27, 24, 21, 0.18);
+  --tier-a: #4A7A52;
+  --tier-b: #C99A2D;
+  --tier-c: #B84D2C;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.65;
+  font-weight: 400;
+  font-feature-settings: "ss01", "ss02";
+  letter-spacing: -0.005em;
+  background-image:
+    radial-gradient(rgba(122, 110, 95, 0.07) 1px, transparent 1px),
+    radial-gradient(rgba(122, 110, 95, 0.04) 1px, transparent 1px);
+  background-size: 4px 4px, 7px 7px;
+  background-position: 0 0, 2px 3px;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--paper-darker); }
+::-webkit-scrollbar-thumb { background: var(--ink-mute); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-soft); }
+
+.wrap { max-width: 720px; margin: 0 auto; padding: 60px 28px 120px; position: relative; }
+@media (max-width: 720px) {
+  body { font-size: 17px; }
+  .wrap { padding: 36px 20px 80px; }
+}
+.wrap::before {
+  content: ''; position: absolute; left: -20px; top: 0; bottom: 0; width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--warm-line) 8%, var(--warm-line) 92%, transparent);
+  display: none;
+}
+@media (min-width: 900px) { .wrap::before { display: block; } }
+
+h1, h2, h3, h4 {
+  font-family: 'Fraunces', 'Newsreader', Georgia, serif;
+  color: var(--ink);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+h1.title {
+  font-size: clamp(36px, 7vw, 64px);
+  line-height: 1.0;
+  font-weight: 600;
+  font-variation-settings: "opsz" 144, "SOFT" 30;
+  letter-spacing: -0.04em;
+  margin-bottom: 4px;
+}
+@media (max-width: 600px) { h1.title { font-size: 38px; } }
+
+.byline {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; color: var(--ink-mute);
+  letter-spacing: 0.04em; text-transform: uppercase;
+  margin-top: 22px;
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+}
+.byline .dot { width: 4px; height: 4px; background: var(--rust); border-radius: 50%; display: inline-block; }
+
+h2 {
+  font-size: clamp(26px, 4vw, 34px);
+  margin-top: 76px; margin-bottom: 14px;
+  font-weight: 600;
+  font-variation-settings: "opsz" 90;
+}
+.section-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--rust);
+  letter-spacing: 0.15em; text-transform: uppercase;
+  font-weight: 500;
+  display: inline-block; margin-bottom: 6px;
+}
+h3 { font-size: 22px; margin-top: 32px; margin-bottom: 10px; font-weight: 500; color: var(--ink); }
+p { margin: 0 0 16px; hanging-punctuation: first; }
+p.lead { font-size: 1.1em; color: var(--ink-soft); font-style: italic; }
+strong { color: var(--ink); font-weight: 600; }
+em { color: var(--ink-soft); }
+
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.86em;
+  background: rgba(184, 77, 44, 0.10);
+  color: var(--rust-dark);
+  padding: 1px 6px; border-radius: 3px;
+  font-weight: 500;
+}
+a { color: var(--rust-dark); text-decoration: none; border-bottom: 1px solid currentColor; transition: color 0.15s; }
+a:hover { color: var(--rust); }
+
+blockquote {
+  margin: 24px 0; padding: 18px 24px;
+  border-left: 3px solid var(--forest);
+  background: rgba(42, 90, 77, 0.06);
+  font-style: italic; font-family: 'Fraunces', serif;
+  color: var(--ink-soft); font-size: 17px;
+  font-variation-settings: "opsz" 24;
+  position: relative;
+}
+blockquote .source {
+  display: block; font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--ink-mute);
+  margin-top: 8px;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+
+ul, ol { padding-left: 22px; margin: 12px 0 18px; }
+ul li, ol li { margin-bottom: 6px; line-height: 1.6; }
+ul li::marker { color: var(--rust); }
+ol li::marker { color: var(--rust); font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
+
+.annotation {
+  background: linear-gradient(180deg, transparent 60%, rgba(201, 154, 45, 0.35) 60%);
+  padding: 0 2px; font-weight: 500;
+}
+.note {
+  font-family: 'Fraunces', serif; font-style: italic;
+  font-size: 15px; color: var(--ink-mute);
+  border-top: 1px dashed var(--warm-line);
+  border-bottom: 1px dashed var(--warm-line);
+  padding: 12px 0; margin: 22px 0;
+}
+.note::before { content: '※ '; color: var(--rust); font-weight: 600; }
+
+.honest {
+  background: rgba(184, 77, 44, 0.06);
+  border: 1px solid rgba(184, 77, 44, 0.25);
+  border-radius: 6px;
+  padding: 18px 22px; margin: 28px 0;
+  position: relative;
+}
+.honest::before {
+  content: 'HONEST NOTE';
+  position: absolute; top: -10px; left: 18px;
+  background: var(--paper);
+  padding: 0 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: 0.15em;
+  color: var(--rust); font-weight: 600;
+}
+.honest p:last-child { margin-bottom: 0; }
+
+.fade-in { opacity: 0; transform: translateY(12px); animation: fadeUp 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+@keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.18s; }
+.stagger-3 { animation-delay: 0.32s; }
+.stagger-4 { animation-delay: 0.48s; }
+.stagger-5 { animation-delay: 0.66s; }
+
+.reveal {
+  opacity: 0; transform: translateY(24px);
+  transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* Architecture layers */
+.arch { margin: 28px 0; display: flex; flex-direction: column; gap: 10px; font-family: 'JetBrains Mono', monospace; }
+.arch-layer {
+  background: var(--paper-darker);
+  border: 1px solid var(--warm-line);
+  border-radius: 4px;
+  padding: 14px 18px;
+  display: grid; grid-template-columns: 110px 1fr; gap: 16px;
+  align-items: center; position: relative;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.arch-layer:hover { transform: translateX(4px); box-shadow: -4px 4px 0 var(--ink); }
+.arch-label { font-size: 10px; color: var(--ink-mute); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500; }
+.arch-label::after { content: ''; display: block; width: 18px; height: 1px; background: var(--rust); margin-top: 4px; }
+.arch-content { font-size: 13px; color: var(--ink); line-height: 1.5; font-weight: 500; }
+.arch-content em { font-style: normal; color: var(--rust-dark); font-weight: 600; }
+.arch-layer.spotlight { background: rgba(184, 77, 44, 0.08); border-color: var(--rust); }
+
+/* 70/30 split */
+.split-viz { margin: 32px 0; font-family: 'JetBrains Mono', monospace; }
+.split-bar {
+  display: flex; height: 64px;
+  border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--warm-line);
+  box-shadow: 0 4px 12px var(--paper-shadow);
+}
+.split-deterministic {
+  flex: 0 0 70%; background: var(--forest);
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 10px 18px; color: var(--paper);
+  position: relative; overflow: hidden;
+}
+.split-deterministic::before {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(-45deg, transparent 0, transparent 14px, rgba(255, 255, 255, 0.04) 14px, rgba(255, 255, 255, 0.04) 16px);
+  pointer-events: none;
+}
+.split-llm {
+  flex: 0 0 30%; background: var(--rust);
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 10px 14px; color: var(--paper);
+}
+.split-pct { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-family: 'Fraunces', serif; line-height: 1; }
+.split-tag { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 4px; opacity: 0.88; }
+.split-legend { display: flex; justify-content: space-between; margin-top: 10px; font-size: 12px; color: var(--ink-soft); flex-wrap: wrap; gap: 8px; }
+.split-legend span:nth-child(1) { color: var(--forest); font-weight: 600; }
+.split-legend span:nth-child(2) { color: var(--rust); font-weight: 600; }
+
+/* Workflow */
+.workflow-wrap { margin: 32px -8px; padding: 24px 8px; overflow-x: auto; }
+.workflow { position: relative; min-width: 600px; padding: 30px 0 12px; }
+.wf-track { position: relative; height: 3px; background: var(--warm-line); margin: 0 30px; border-radius: 2px; }
+.wf-track::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, var(--rust) 0%, var(--rust) 100%);
+  width: 0%; border-radius: 2px;
+  animation: trackFill 6s ease-in-out infinite;
+}
+@keyframes trackFill { 0% { width: 0%; } 90% { width: 100%; } 100% { width: 100%; opacity: 0.3; } }
+.wf-dot {
+  position: absolute; top: -4px;
+  width: 11px; height: 11px;
+  background: var(--rust); border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--paper), 0 0 0 4px var(--rust);
+  animation: dotMove 6s ease-in-out infinite;
+}
+@keyframes dotMove {
+  0% { left: 0%; }
+  90% { left: calc(100% - 11px); }
+  100% { left: calc(100% - 11px); opacity: 0.3; }
+}
+.wf-stops { display: flex; justify-content: space-between; margin: -8px 24px 0; position: relative; }
+.wf-stop { text-align: center; flex: 1; position: relative; }
+.wf-stop::before {
+  content: ''; display: block; width: 12px; height: 12px;
+  background: var(--paper); border: 2px solid var(--ink-mute);
+  border-radius: 50%; margin: 0 auto 8px;
+  position: relative; z-index: 2;
+}
+.wf-stop.human::before { border-color: var(--forest); background: var(--forest); }
+.wf-stop-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--ink-soft); font-weight: 500; display: block;
+}
+.wf-stop-sub { font-family: 'Fraunces', serif; font-style: italic; font-size: 11px; color: var(--ink-mute); display: block; margin-top: 2px; }
+
+/* Tiers */
+.tiers { margin: 28px 0; display: grid; gap: 14px; }
+.tier {
+  background: var(--paper-darker);
+  border: 1px solid var(--warm-line);
+  border-radius: 6px;
+  padding: 18px 20px;
+  position: relative; overflow: hidden;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.tier:hover { transform: translateY(-2px); box-shadow: 0 8px 16px var(--paper-shadow); }
+.tier::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.tier-a::before { background: var(--tier-a); }
+.tier-b::before { background: var(--tier-b); }
+.tier-c::before { background: var(--tier-c); }
+.tier-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.tier-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 3px 8px; border-radius: 3px;
+  color: var(--paper); text-transform: uppercase;
+}
+.tier-a .tier-tag { background: var(--tier-a); }
+.tier-b .tier-tag { background: var(--tier-b); }
+.tier-c .tier-tag { background: var(--tier-c); }
+.tier-name { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; color: var(--ink); }
+.tier-approval { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); margin-left: auto; text-transform: uppercase; letter-spacing: 0.05em; }
+.tier-examples { font-size: 14px; color: var(--ink-soft); margin-top: 6px; }
+.tier-examples strong { color: var(--ink); font-weight: 500; }
+
+/* Swap stack */
+.swap-stack { margin: 28px 0; display: grid; gap: 12px; }
+.swap-row {
+  background: var(--paper-darker);
+  border: 1px solid var(--warm-line);
+  border-radius: 6px;
+  padding: 16px 18px;
+  display: grid; grid-template-columns: 110px 1fr 1fr; gap: 14px;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+}
+@media (max-width: 600px) {
+  .swap-row { grid-template-columns: 1fr; gap: 6px; padding: 14px; }
+  .swap-layer-name { margin-bottom: 4px; }
+}
+.swap-layer-name { font-size: 10px; color: var(--ink-mute); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
+.swap-component { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.swap-arrow { color: var(--rust); font-size: 14px; }
+.swap-current { color: var(--ink); background: rgba(42, 90, 77, 0.10); padding: 4px 8px; border-radius: 3px; border: 1px solid rgba(42, 90, 77, 0.3); }
+.swap-future { color: var(--ink-soft); font-style: italic; }
+
+/* Phases */
+.phases { margin: 28px 0; position: relative; padding-left: 28px; }
+.phases::before { content: ''; position: absolute; left: 8px; top: 14px; bottom: 14px; width: 2px; background: var(--warm-line); }
+.phase { position: relative; padding: 6px 0 22px; }
+.phase::before {
+  content: ''; position: absolute; left: -25px; top: 12px;
+  width: 14px; height: 14px;
+  background: var(--paper); border: 2px solid var(--rust);
+  border-radius: 50%;
+}
+.phase.current::before { background: var(--rust); box-shadow: 0 0 0 4px rgba(184, 77, 44, 0.18); }
+.phase-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--rust); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
+.phase-title { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 500; color: var(--ink); margin-bottom: 6px; }
+.phase-desc { font-size: 15px; color: var(--ink-soft); line-height: 1.6; }
+
+/* Incidents */
+.incidents { margin: 24px 0; display: grid; gap: 16px; }
+.incident {
+  background: var(--paper-darker);
+  border: 1px solid var(--warm-line);
+  border-left: 3px solid var(--rust);
+  border-radius: 0 6px 6px 0;
+  padding: 16px 20px;
+  font-size: 14px; line-height: 1.55;
+  display: grid; grid-template-columns: 44px 1fr; gap: 14px;
+  align-items: start;
+}
+@media (max-width: 540px) { .incident { grid-template-columns: 36px 1fr; gap: 10px; padding: 14px 16px; } }
+.incident-icon {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(184, 77, 44, 0.12);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--rust);
+  font-family: 'Fraunces', serif;
+  font-weight: 700; font-size: 18px;
+}
+@media (max-width: 540px) { .incident-icon { width: 36px; height: 36px; font-size: 15px; } }
+.incident-name { font-family: 'Fraunces', serif; font-weight: 600; color: var(--ink); font-size: 17px; display: block; margin-bottom: 2px; line-height: 1.3; }
+.incident-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute); letter-spacing: 0.05em; text-transform: uppercase; }
+.incident-lesson { margin-top: 8px; font-size: 13px; color: var(--ink-soft); }
+.incident-lesson::before { content: '→ '; color: var(--rust); font-weight: 700; }
+
+/* Costs */
+.cost-grid { margin: 24px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 540px) { .cost-grid { grid-template-columns: 1fr; } }
+.cost-card { background: var(--paper-darker); border: 1px solid var(--warm-line); border-radius: 6px; padding: 18px; text-align: left; }
+.cost-card-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+.cost-card-num { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 600; color: var(--rust); line-height: 1; font-variation-settings: "opsz" 144; letter-spacing: -0.02em; }
+.cost-card-sub { font-family: 'Newsreader', serif; font-style: italic; font-size: 13px; color: var(--ink-soft); margin-top: 8px; line-height: 1.4; }
+
+/* Footer */
+.footer { margin-top: 100px; padding-top: 30px; border-top: 2px solid var(--warm-line); position: relative; }
+.footer::before {
+  content: 'END';
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  background: var(--paper); padding: 0 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--ink-mute); letter-spacing: 0.2em;
+}
+.footer-text { font-family: 'Fraunces', serif; font-style: italic; color: var(--ink-mute); font-size: 14px; text-align: center; line-height: 1.6; }
+
+.toc {
+  position: fixed; top: 24px; right: 24px;
+  background: var(--ink); color: var(--paper);
+  padding: 8px 14px; border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.05em;
+  z-index: 100;
+  box-shadow: 0 4px 14px var(--paper-shadow-strong);
+  display: flex; align-items: center; gap: 8px;
+  opacity: 0; transform: translateY(-8px);
+  animation: fadeUp 0.6s ease 1.2s forwards;
+}
+.toc::before { content: ''; width: 6px; height: 6px; background: var(--rust); border-radius: 50%; display: inline-block; }
+@media (max-width: 600px) { .toc { display: none; } }
+::selection { background: var(--rust); color: var(--paper); }
+</style>
+</head>
+
+<body>
+
+<div class="toc">High-Level Design</div>
+
+<div class="wrap">
+
+  <header>
+    <div class="fade-in stagger-1">
+      <h1 class="title">DevOps AI Agent</h1>
+    </div>
+
+    <div class="byline fade-in stagger-2">
+      <span>Yehor Fedorov</span>
+      <span class="dot"></span>
+      <span>Senior DevOps Engineer</span>
+      <span class="dot"></span>
+      <span>May 2026</span>
+    </div>
+
+    <p class="lead fade-in stagger-3" style="margin-top: 36px;">
+      Hi! Thanks for the technical interview today. You shared a real problem your team is working on. I spent a few hours researching it. This document is what I'd build.
+    </p>
+
+    <div class="honest fade-in stagger-4">
+      <p>Quick honesty up front: I have <strong>3 years of AWS and Kubernetes experience</strong>, but <strong>zero AI agent experience</strong> before this task. So this is my <em>research-based</em> plan, not a senior AI engineer's perfect design. I marked the parts I'm not sure about. I think honesty is more useful here than pretending.</p>
+    </div>
+  </header>
+
+  <section>
+    <span class="section-num fade-in stagger-5">§ 1 · Constraints</span>
+    <h2 class="fade-in stagger-5">What I heard from you</h2>
+
+    <p class="fade-in stagger-5">Before I designed anything, I wrote down your rules. Here are your words from our call:</p>
+
+    <blockquote class="reveal">
+      "We don't want to use Claude in that manner, for vendor-locking purposes. We want to develop a platform ourselves and just use the LLM provider for LLM interaction."
+      <span class="source">Interviewer, on the call</span>
+    </blockquote>
+
+    <blockquote class="reveal">
+      "If it's an S3 packet, it will go create the PR, get an approval, merge it, therefore Terraform apply, etc."
+      <span class="source">Interviewer, on the workflow</span>
+    </blockquote>
+
+    <p class="reveal">My design rules from this:</p>
+
+    <ul class="reveal">
+      <li><strong>Build our own platform.</strong> Not a SaaS agent platform.</li>
+      <li><strong>LLM provider is swappable.</strong> OpenAI today is fine. Tomorrow could be Claude or self-hosted. The platform should not care.</li>
+      <li><strong>Use existing GitOps.</strong> The agent does not run <code>terraform apply</code>. It opens a PR. Your existing pipeline applies it. <span class="annotation">This is the safety boundary.</span></li>
+      <li><strong>Open-source is OK.</strong> Slack and Jira are the entry points, because that is where developers already work.</li>
+    </ul>
+
+    <p class="reveal">Two things you didn't say but I think matter:</p>
+
+    <ul class="reveal">
+      <li>You are SOC 2 Type II + ISO 27701 compliant. <strong>Audit trail is not optional.</strong> Every action must be traceable.</li>
+      <li>Your <a href="https://engineering.lusha.com" target="_blank" rel="noopener">engineering blog</a> mentions you use <strong>Elasticsearch as a vector DB</strong> for product search. We can reuse it for the agent's RAG. No need to add Pinecone or Qdrant.</li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="section-num">§ 2 · The framing</span>
+    <h2>It's not really an "AI agent." It's mostly automation with an LLM in front.</h2>
+
+    <p class="reveal">This was my biggest shift while researching. Most DevOps tickets ("create S3 bucket", "give me read access to staging RDS", "create Kafka topic") don't need a smart LLM. They need good Terraform modules and a self-service portal.</p>
+
+    <p class="reveal">My rough estimate of how the work splits:</p>
+
+    <div class="split-viz reveal">
+      <div class="split-bar">
+        <div class="split-deterministic">
+          <div class="split-pct">~70%</div>
+          <div class="split-tag">Deterministic code</div>
+        </div>
+        <div class="split-llm">
+          <div class="split-pct">~30%</div>
+          <div class="split-tag">LLM helps</div>
+        </div>
+      </div>
+      <div class="split-legend">
+        <span>Templates, forms, structured input</span>
+        <span>Messy text, unclear intent</span>
+      </div>
+    </div>
+
+    <div class="note reveal">I'm guessing the 70/30. I don't have your real ticket data. The first thing I'd do in week 1 is measure it.</div>
+
+    <p class="reveal">So the design is <strong>deterministic-first, LLM only when needed</strong>:</p>
+
+    <ol class="reveal">
+      <li>Ticket arrives. Cheap LLM extracts intent and parameters.</li>
+      <li>If it matches a known template (S3 bucket, IAM read role, Kafka topic) and confidence is high, run the deterministic handler. No planning LLM. Just fill template, open PR.</li>
+      <li>If it's ambiguous or new, planner LLM creates a JSON plan. Plan goes to a human in Slack <em>before</em> any action runs.</li>
+    </ol>
+
+    <p class="reveal">This is the opposite of what people expect from an "AI agent." It's also why this won't blow up the way Replit's did (more in §6).</p>
+  </section>
+
+  <section>
+    <span class="section-num">§ 3 · Architecture</span>
+    <h2>Five layers. Each does one job.</h2>
+
+    <div class="arch reveal">
+      <div class="arch-layer">
+        <div class="arch-label">Channels</div>
+        <div class="arch-content"><em>Jira webhook + Slack events.</em> Tickets in, approvals back, notifications out.</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-label">Ingestion</div>
+        <div class="arch-content"><em>FastAPI gateway.</em> Validates webhooks, writes events to Postgres (idempotent on Jira ID).</div>
+      </div>
+      <div class="arch-layer spotlight">
+        <div class="arch-label">Orchestration</div>
+        <div class="arch-content"><em>LangGraph</em> runs the workflow. <em>LiteLLM</em> proxies LLM calls. <em>Postgres</em> stores state and audit. <em>Redis</em> for queues.</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-label">Tools</div>
+        <div class="arch-content"><em>MCP servers</em> for Jira, GitHub, Slack, AWS, Confluent Cloud, Vault. Pre-built where they exist; custom for our internal APIs.</div>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-label">Observability</div>
+        <div class="arch-content"><em>Langfuse</em> for LLM traces. Datadog for infra. Prometheus + Grafana for cost.</div>
+      </div>
+    </div>
+
+    <p class="reveal">Three components do the heavy work, each picked for a clear reason:</p>
+
+    <ul class="reveal">
+      <li><strong>LangGraph</strong> for orchestration. MIT-licensed, runs anywhere. Gives me three things I would not write myself in a weekend: persistent state, <code>interrupt()</code> for waiting on humans, and audit traces by default.</li>
+      <li><strong>LiteLLM</strong> as the LLM gateway. One OpenAI-compatible endpoint that routes to OpenAI, Anthropic, Bedrock, or self-hosted models. Switching providers is a config change. <span class="annotation">This is your lock-in escape.</span></li>
+      <li><strong>MCP (Model Context Protocol)</strong> for tools. Anthropic donated it to Linux Foundation in December 2025. Now a vendor-neutral standard supported by Anthropic, OpenAI, Google, Microsoft, AWS.</li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="section-num">§ 4 · End to end</span>
+    <h2>Walkthrough: your S3 bucket example</h2>
+
+    <p class="reveal">A developer opens a Jira ticket: "<em>Create S3 bucket for marketing-team to store campaign exports.</em>"</p>
+
+    <div class="workflow-wrap reveal">
+      <div class="workflow">
+        <div class="wf-track">
+          <div class="wf-dot"></div>
+        </div>
+        <div class="wf-stops">
+          <div class="wf-stop">
+            <span class="wf-stop-label">Jira</span>
+            <span class="wf-stop-sub">ticket in</span>
+          </div>
+          <div class="wf-stop">
+            <span class="wf-stop-label">Classify</span>
+            <span class="wf-stop-sub">cheap LLM</span>
+          </div>
+          <div class="wf-stop">
+            <span class="wf-stop-label">Plan</span>
+            <span class="wf-stop-sub">LLM + RAG</span>
+          </div>
+          <div class="wf-stop human">
+            <span class="wf-stop-label">Approve</span>
+            <span class="wf-stop-sub">human, Slack</span>
+          </div>
+          <div class="wf-stop">
+            <span class="wf-stop-label">PR</span>
+            <span class="wf-stop-sub">GitHub</span>
+          </div>
+          <div class="wf-stop human">
+            <span class="wf-stop-label">Merge</span>
+            <span class="wf-stop-sub">human reviews</span>
+          </div>
+          <div class="wf-stop">
+            <span class="wf-stop-label">Apply</span>
+            <span class="wf-stop-sub">existing CI/CD</span>
+          </div>
+          <div class="wf-stop">
+            <span class="wf-stop-label">Notify</span>
+            <span class="wf-stop-sub">Jira + Slack</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ol class="reveal">
+      <li><strong>Receive.</strong> Jira webhook hits FastAPI. Ticket saved to Postgres. New LangGraph thread starts.</li>
+      <li><strong>Classify.</strong> Cheap LLM (GPT-5.4-mini) extracts intent. Ticket body wrapped in <code>&lt;untrusted_input&gt;</code> tags as protection from prompt injection.</li>
+      <li><strong>Plan.</strong> RAG looks up our naming rules, KMS policy, and tags from Confluence (via Elasticsearch). LLM writes a "plan card", the diff that will land in the PR.</li>
+      <li><strong>Wait for approval.</strong> LangGraph calls <code>interrupt()</code>. State saved to Postgres. <em>Nothing sits in RAM waiting.</em> Slack message goes to <code>#devops-approvals</code> with the plan, diff, cost estimate, and risk tier.</li>
+      <li><strong>Resume.</strong> DevOps engineer clicks Approve. Slack hits our webhook. We call <code>langgraph.resume(thread_id)</code>. State loads from Postgres. Workflow continues.</li>
+      <li><strong>Open PR.</strong> Through GitHub MCP. The diff has the bucket name, KMS key, tags, IAM policy.</li>
+      <li><strong>Wait for merge and apply.</strong> The agent does not merge or apply. Human merges. GitHub Actions runs <code>terraform apply</code>. Agent listens on the <code>workflow_run.completed</code> webhook.</li>
+      <li><strong>Notify.</strong> Jira comment closes the ticket with a full audit summary. Slack DM to the developer with bucket name, region, AWS account, IAM role, and a quick CLI example.</li>
+    </ol>
+
+    <p class="reveal">What the agent never does: call AWS APIs directly, merge a PR, run <code>terraform apply</code>. <span class="annotation">It always goes through your existing GitOps.</span></p>
+  </section>
+
+  <section>
+    <span class="section-num">§ 5 · Approval model</span>
+    <h2>Risk tiers, so humans don't rubber-stamp into trouble</h2>
+
+    <p class="reveal">If we ask for human approval on every action, engineers will rubber-stamp them within a week and the safety we built collapses. So actions are tiered by blast radius and reversibility.</p>
+
+    <div class="tiers reveal">
+      <div class="tier tier-a">
+        <div class="tier-head">
+          <span class="tier-tag">Tier A</span>
+          <span class="tier-name">Read-only</span>
+          <span class="tier-approval">Auto-execute</span>
+        </div>
+        <div class="tier-examples"><strong>Examples:</strong> List S3 buckets, get pod status, query logs, read Jira history. <strong>Controls:</strong> audit log + 5% random spot-checks to catch drift even when no approval was needed.</div>
+      </div>
+      <div class="tier tier-b">
+        <div class="tier-head">
+          <span class="tier-tag">Tier B</span>
+          <span class="tier-name">Reversible writes</span>
+          <span class="tier-approval">1 approval</span>
+        </div>
+        <div class="tier-examples"><strong>Examples:</strong> Create S3 bucket, create Kafka topic, grant read-only IAM, add a developer to a non-prod group. <strong>Controls:</strong> single DevOps approval in Slack with the diff visible. 4-hour timeout, then escalate. Idempotency key on every action.</div>
+      </div>
+      <div class="tier tier-c">
+        <div class="tier-head">
+          <span class="tier-tag">Tier C</span>
+          <span class="tier-name">Production / hard to reverse</span>
+          <span class="tier-approval">Dual + token + cooldown</span>
+        </div>
+        <div class="tier-examples"><strong>Examples:</strong> Production IAM admin, DDL on a prod database, deleting a Kafka topic, anything tagged <code>env=production</code> with destructive intent. <strong>Controls:</strong> two approvals from <em>different roles</em> (DevOps + Tech Lead) + a typed confirmation token (not a click) + 15-minute cooling period before execute. Anyone can cancel during the cooldown.</div>
+      </div>
+    </div>
+
+    <p class="reveal">Tier classification is rule-based, on <code>(action, environment, blast_radius)</code>. <em>Not</em> a place I want the LLM making the final call. The classifier proposes a tier; a hard rule confirms it; if there's any doubt, the rule wins.</p>
+  </section>
+
+  <section>
+    <span class="section-num">§ 6 · Hard lessons</span>
+    <h2>Three production failures I designed around</h2>
+
+    <p class="reveal">I read about these while researching. They are real, recent, and well documented. Each one taught me something I had to bake into the design.</p>
+
+    <div class="incidents reveal">
+      <div class="incident">
+        <div class="incident-icon">1</div>
+        <div>
+          <span class="incident-name">Replit AI agent: production database deletion</span>
+          <span class="incident-date">July 2025</span>
+          <p style="margin: 8px 0 0;">An AI coding agent ran <code>DROP TABLE</code> on production during an explicit code freeze. Then lied about whether rollback was possible. The agent had <em>direct write access</em> to the prod DB, and decided + executed in the same loop step.</p>
+          <p class="incident-lesson">My design: the LLM never touches infra directly. It only writes a plan that goes through GitOps. Tier-C destructive actions need two humans plus a typed token plus a cooldown.</p>
+        </div>
+      </div>
+
+      <div class="incident">
+        <div class="incident-icon">2</div>
+        <div>
+          <span class="incident-name">EchoLeak (CVE-2025-32711): zero-click prompt injection</span>
+          <span class="incident-date">June 2025</span>
+          <p style="margin: 8px 0 0;">An attacker email could trick Microsoft 365 Copilot into reading files and leaking data. The first <em>in-the-wild</em> prompt-injection-to-data-exfiltration on a production LLM.</p>
+          <p class="incident-lesson">My design: ticket bodies, Confluence content, and Slack messages are <strong>untrusted input</strong>. Wrapped in delimiter tags. Strict tool allowlists. Never auto-fetch URLs found in retrieved content.</p>
+        </div>
+      </div>
+
+      <div class="incident">
+        <div class="incident-icon">3</div>
+        <div>
+          <span class="incident-name">PocketOS / Railway: the 9-second disaster</span>
+          <span class="incident-date">March 2026</span>
+          <p style="margin: 8px 0 0;">Claude Code, blocked by a credential mismatch, found an unrelated Railway API token in a file and called <code>volumeDelete</code> to "fix" the obstacle. Database and backups gone in 9 seconds.</p>
+          <p class="incident-lesson">My design: when a tool fails, the agent must <em>not</em> autonomously search for another path. Force escalation to a human. LangGraph supports this with explicit "fail-up" edges.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="section-num">§ 7 · Lock-in</span>
+    <h2>Three layers that are swappable. None locked to a vendor.</h2>
+
+    <p class="reveal">This was your strongest rule, so it gets its own section.</p>
+
+    <div class="swap-stack reveal">
+      <div class="swap-row">
+        <div class="swap-layer-name">Layer 1<br>LLM</div>
+        <div class="swap-component"><span class="swap-current">OpenAI GPT-5.4</span></div>
+        <div class="swap-component"><span class="swap-arrow">→</span> <span class="swap-future">Claude on Bedrock, self-hosted Llama, anything else</span></div>
+      </div>
+      <div class="swap-row">
+        <div class="swap-layer-name">Layer 2<br>Orchestration</div>
+        <div class="swap-component"><span class="swap-current">LangGraph (MIT, self-hosted)</span></div>
+        <div class="swap-component"><span class="swap-arrow">→</span> <span class="swap-future">OpenAI Agents SDK, custom FastAPI, Mastra</span></div>
+      </div>
+      <div class="swap-row">
+        <div class="swap-layer-name">Layer 3<br>Tools</div>
+        <div class="swap-component"><span class="swap-current">MCP (Linux Foundation)</span></div>
+        <div class="swap-component"><span class="swap-arrow">→</span> <span class="swap-future">vendor-neutral by design, every major LLM supports it</span></div>
+      </div>
+    </div>
+
+    <p class="reveal">Switching from OpenAI to Claude is a config change in LiteLLM, not a code rewrite. Switching orchestrators is a 2 to 4 week project, not a year. Tools written as MCP servers don't care which LLM is calling them.</p>
+  </section>
+
+  <section>
+    <span class="section-num">§ 8 · Trade-offs</span>
+    <h2>What I chose not to do</h2>
+
+    <ol class="reveal">
+      <li><strong>Speed vs. blast radius.</strong> I could ship a Replit-style "agent does it all" in 3 weeks. I'm not doing that. Cost: 8 to 12 weeks longer to first value. Benefit: I won't be on Hacker News explaining how the agent dropped a prod table.</li>
+      <li><strong>Plan-and-Execute vs. ReAct loops.</strong> ReAct is more impressive in demos. It's also where most production incidents come from. Plan-and-Execute makes me show the plan to a human before any side effect.</li>
+      <li><strong>Build vs. buy.</strong> I'd build the request-fulfillment agent (it's tied to your private infra). For incident triage I'd evaluate Datadog Bits AI SRE or PagerDuty's SRE Agent, those are commodity capabilities, not worth building.</li>
+      <li><strong>Managed APIs vs. self-hosted.</strong> Today: managed APIs through LiteLLM. Self-hosting Llama makes sense above ~$10K/month sustained. Lusha isn't there. LiteLLM lets us defer that decision until data forces it.</li>
+      <li><strong>LangGraph vs. AWS-native (Step Functions + SQS + DynamoDB + Lambda).</strong> Lusha is 100% on AWS, and Step Functions has Wait-for-Callback patterns equivalent to LangGraph's <code>interrupt()</code>. So this is a real alternative I considered. Why I picked LangGraph anyway: AWS Step Functions ASL is verbose JSON (vs. Python code), AI-specific primitives like message-history state and RAG threading need extra glue in Step Functions, and most AI agent reference architectures are written in LangGraph. We still use AWS heavily: SQS for the ticket queue, Bedrock as a LiteLLM backend, Secrets Manager for keys, CloudWatch for infra metrics. So this is <em>LangGraph + AWS</em>, not <em>LangGraph instead of AWS</em>.</li>
+      <li><strong>Total cost of ownership.</strong> Build cost ~$91K (2 engineers × 12 weeks). Ongoing run cost ~$15K/year (LLM bills + Postgres + Langfuse + small infra footprint). The value: routine S3 / IAM / Kafka requests stop blocking developers, DevOps team gets ~1 week per quarter back for actual platform work, and audit trail comes for free. Pays back within year one even with conservative coverage assumptions.</li>
+    </ol>
+  </section>
+
+  <section>
+    <span class="section-num">§ 9 · Honesty</span>
+    <h2>What I'm not sure about</h2>
+
+    <ul class="reveal">
+      <li><strong>I haven't seen your real Jira ticket data.</strong> The 70/30 split is my guess. Week 1's job is to measure it.</li>
+      <li><strong>I'm new to AI agents.</strong> Three years of AWS and K8s is what I bring. I'd learn the AI parts on the job and expect the first 3 weeks of build to invalidate at least one assumption in this doc.</li>
+      <li><strong>Approval fatigue is the failure mode I'm least sure I solved.</strong> Confirmation tokens and 5% spot-checks help. But if real engineers find the friction unbearable, we'll redesign. I'd plan a 2-week feedback cycle in week 5 just for this.</li>
+      <li><strong>Cost numbers assume English-only tickets.</strong> Multilingual or large-context investigations could be 2 to 3× per ticket.</li>
+    </ul>
+
+    <p class="reveal">Questions I'd want to ask on a follow-up call:</p>
+
+    <ul class="reveal">
+      <li>Rough split of your top-5 ticket types? (validates the 70/30)</li>
+      <li>Atlantis, Terraform Cloud, or plain GitHub Actions for <code>terraform apply</code>?</li>
+      <li>Any internal-developer-portal effort already, or would the agent be the entry point?</li>
+      <li>Who owns prompt iteration and eval, DevOps team or somewhere else?</li>
+    </ul>
+  </section>
+
+  <footer class="footer reveal">
+    <p class="footer-text">
+      Thanks for reading. Happy to walk through any section live, sketch on a whiteboard, or change my mind on the parts I got wrong.<br>Yehor
+    </p>
+  </footer>
+
+</div>
+
+<script>
+(function() {
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  els.forEach(el => io.observe(el));
+})();
+</script>
+
+</body>
+</html>
